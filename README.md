@@ -5,7 +5,7 @@ Builds the Exoscale compute template behind the [Open Pryv.io Marketplace listin
 - **Users:** see the setup guide at https://pryv.github.io/ops-image-exoscale-open-pryv.io/ (source: [`docs/README.md`](docs/README.md)).
 - **Maintainers:** this file. Registered templates are listed in [`TEMPLATES.md`](TEMPLATES.md).
 
-The v1 template (Open Pryv.io 1.7) is preserved at tag [`1.7`](https://github.com/pryv/ops-image-exoscale-open-pryv.io/tree/1.7).
+The v1 template (Open Pryv.io 1.7) is preserved on branch [`v1`](https://github.com/pryv/ops-image-exoscale-open-pryv.io/tree/v1) (tag `1.7`).
 
 ## What the template contains
 

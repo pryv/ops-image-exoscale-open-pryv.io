@@ -9,7 +9,7 @@ Template for Open Pryv.io 2, rebuilt from scratch:
 - First boot runs the open-pryv.io install wizard unattended from two user-data settings (`PRYV_HOSTNAME`, `PRYV_EMAIL`); all secrets are generated on the instance.
 - HTTPS by the server's built-in Let's Encrypt client: no nginx, no certbot.
 - The server runs under systemd (`pryv.service`): restarts after a reboot, stops cleanly.
-- The v1 files (Packer QEMU build, `setup.js`, nginx configuration) are removed; v1 stays available at tag `1.7`.
+- The v1 files (Packer QEMU build, `setup.js`, nginx configuration) are removed; v1 stays available on branch `v1` (tag `1.7`).
 
 ## 1.7
 
