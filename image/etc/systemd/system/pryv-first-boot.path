@@ -1,0 +1,9 @@
+[Unit]
+Description=Start the Open Pryv.io first-boot setup once its settings exist
+ConditionPathExists=!/opt/pryv/.initialized
+
+[Path]
+PathExists=/opt/pryv/first-boot.env
+
+[Install]
+WantedBy=multi-user.target

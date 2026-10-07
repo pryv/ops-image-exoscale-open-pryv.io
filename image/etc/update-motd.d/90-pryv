@@ -1,0 +1,29 @@
+#!/bin/sh
+# Open Pryv.io status shown at login
+if [ -f /opt/pryv/.initialized ]; then
+  cat <<'EOF'
+
+ Open Pryv.io
+   Service:        systemctl status pryv      logs: journalctl -u pryv
+   Configuration:  /opt/pryv/pryv-config.yml  (holds the admin key, root only)
+   Setup log:      /var/log/pryv-first-boot.log
+   Upgrade:        edit PRYV_IMAGE in /etc/default/pryv, docker pull it, systemctl restart pryv
+
+EOF
+elif [ -f /opt/pryv/first-boot.env ]; then
+  cat <<'EOF'
+
+ Open Pryv.io setup is running:  tail -f /var/log/pryv-first-boot.log
+
+EOF
+else
+  cat <<'EOF'
+
+ Open Pryv.io is not configured yet. Write /opt/pryv/first-boot.env (as root):
+   PRYV_HOSTNAME=pryv.example.com     (its DNS A record must point to this instance)
+   PRYV_EMAIL=you@example.com         (Let's Encrypt contact)
+ Setup then starts by itself:  tail -f /var/log/pryv-first-boot.log
+ Documentation: https://pryv.github.io/ops-image-exoscale-open-pryv.io/
+
+EOF
+fi

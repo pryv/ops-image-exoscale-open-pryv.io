@@ -1,0 +1,30 @@
+# Open Pryv.io server.
+#
+# Runs the same container as the wizard-generated /opt/pryv/run-pryv.sh (same
+# image, mounts, ports and command), in the foreground under systemd so that it
+# restarts after a reboot or a crash and gets time to stop cleanly: the server
+# needs up to 30 s to stop its embedded platform database.
+# Do not also run run-pryv.sh: that would start a second, unsupervised container.
+[Unit]
+Description=Open Pryv.io
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=exec
+EnvironmentFile=/etc/default/pryv
+ExecStartPre=-/usr/bin/docker rm -f pryvio
+ExecStart=/usr/bin/docker run --rm --name pryvio --stop-timeout 30 \
+  -v /opt/pryv:/app/pryv \
+  -v /opt/pryv/data:/app/pryv/data \
+  -p 443:443 -p 80:80 \
+  ${PRYV_IMAGE} \
+  node bin/master.js --config /app/pryv/pryv-config.yml
+ExecStop=/usr/bin/docker stop -t 30 pryvio
+TimeoutStopSec=45
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

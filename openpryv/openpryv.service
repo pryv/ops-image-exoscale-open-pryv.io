@@ -1,9 +1,0 @@
-[Unit]
-Description=Open-Pryv.io Service
-
-[Service]
-Type=simple
-ExecStart=/bin/bash /usr/bin/openpryv.sh
-
-[Install]
-WantedBy=multi-user.target

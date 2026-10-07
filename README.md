@@ -1,170 +1,67 @@
-# Open-Pryv.io image for Exoscale
+# Open Pryv.io template for Exoscale
 
-## Description
+Builds the Exoscale compute template behind the [Open Pryv.io Marketplace listing](https://www.exoscale.com/marketplace/listing/open-pryv-io/).
 
-This tutorial will guide you to:  
+- **Users:** see the setup guide at https://pryv.github.io/ops-image-exoscale-open-pryv.io/ (source: [`docs/README.md`](docs/README.md)).
+- **Maintainers:** this file. Registered templates are listed in [`TEMPLATES.md`](TEMPLATES.md).
 
-- create a new virtual machine (VM)
-- configure the VM with the [Open Pryv.io](https://github.com/pryv/open-pryv.io/) template.
+The v1 template (Open Pryv.io 1.7) is preserved at tag [`1.7`](https://github.com/pryv/ops-image-exoscale-open-pryv.io/tree/1.7).
 
-## Requirements
+## What the template contains
 
-- Account on Exoscale
-- DNS zone to define a type-A record
+Ubuntu 24.04 LTS (Exoscale's stock template) plus:
 
-## Usage
+- Docker Engine, and the `pryvio/open-pryv.io:<tag>` image pre-pulled, so a new instance runs a known release without reaching Docker Hub;
+- `/etc/default/pryv`: the image tag (`PRYV_IMAGE`), the one setting an upgrade changes;
+- `/opt/pryv/first-boot.sh` with `pryv-first-boot.path` / `.service`: as soon as `/opt/pryv/first-boot.env` exists (written by the user-data), it runs the open-pryv.io install wizard unattended (`init --non-interactive`, answers from [`init-answers.template.yml`](image/opt/pryv/init-answers.template.yml)), gives the generated `pryv-config.yml` to the server's user (uid 1000, mode 0600), validates it with the generated `check-config.sh`, waits for the host name to resolve to the instance, then starts `pryv.service`;
+- `pryv.service`: the container from the wizard's `run-pryv.sh` (same image, mounts, ports and command), run in the foreground under systemd, so it restarts after a reboot and gets 30 s to stop (the embedded platform database snapshots on stop);
+- unattended security upgrades, and Exoscale's template cleanup (machine id, SSH keys, cloud-init state, logs).
 
-### Setup Instance of the image
+No configuration and no secret is baked in: every instance generates its own at first boot.
 
-#### Create Firewall rules
+| Path | Content |
+|------|---------|
+| [`packer/openpryv.pkr.hcl`](packer/openpryv.pkr.hcl) | Packer build (Exoscale builder) |
+| [`packer/scripts/`](packer/scripts/) | Provisioning scripts, run in order; `exoscale/` holds Exoscale's standard template scripts |
+| [`image/`](image/) | Files installed into the template, by path |
+| [`docs/`](docs/) | User guide, published with GitHub Pages |
 
-To create new Firewall rules, go to COMPUTE>FIREWALLING and then click on the ADD button. You can create the group `pryv` and click on CREATE. You can then select the group `pryv` and add new rules as shown on the screenshot below.
+## Building a template
 
-![Firewall](./docs/images/firewall.png)
+The build runs on Exoscale: Packer starts an instance from the stock Ubuntu template, provisions it over SSH, stops it, snapshots it and registers the snapshot as a template in the first zone of `zones`, then copies it to the other zones (one template UUID per zone).
 
-- TCP 443 is necessary for HTTPS
-- TCP 80 is handy for HTTP to HTTPS redirection
-- TCP 22 is used for SSH
+Requirements:
 
-#### Create Instance
-
-To create a new instance, go to COMPUTE>INSTANCES and then click on the ADD button. You can choose the hostname of the machine and build the configuration as shown on the screenshot below.
-
-![Create Instance 1](./docs/images/create_instance_1.png)
-
-Then select the Security Group `pryv` and copy the **whole** content of the snippet (you need to include `#cloud-config`) below replacing **${HOSTNAME}**, **${SECRET_KEY}** and **${EMAIL}** in the field `User Data` of the form.  
-
-- **${HOSTNAME}** : Hostname on which your Open-Pryv.io platform is exposed. You will need to define a DNS A record for this hostname.
-- **${SECRET_KEY}** : This key must be randomly generated and is used as the admin access key
-- **${EMAIL}** : This email is only used by Letsencrypt to give you information about your certificate and for recovery purposes ([Link to Letsencrypt](https://letsencrypt.org/fr/privacy/#subscriber)).
-
-```yaml 
-#cloud-config
-write_files:
-- content: |
-    {
-      "HOSTNAME": "${HOSTNAME}",
-      "EMAIL": "${EMAIL}",
-      "KEY": "${SECRET_KEY}"
-    }
-  path: /tmp/conf/config.json
-
-runcmd:
- - node /home/ubuntu/setup.js
-```
-
-![Create Instance 2](./docs/images/create_instance_2.png)
-
-#### DNS Record
-
-Once your machine is started, look at the IP address attributed to your machine (see screenshot below) and create an A record in your DNS zone with the ${HOSTNAME} you furnished before.
-
-![IP address](./docs/images/ip.png)
-
-### Log
-
-The first boot can take up to 10 minutes.
-
-To follow the set-up process, connect in ssh inside your VM and read the log file `/home/ubuntu/setup.log`.
+- [Packer](https://developer.hashicorp.com/packer/install) 1.10 or later (no Docker or KVM needed locally);
+- an Exoscale IAM API key allowed to manage compute instances, snapshots, templates, SSH keys and security groups, exported as `EXOSCALE_API_KEY` and `EXOSCALE_API_SECRET`;
+- a security group named `packer` (or set `security_group`) allowing TCP 22 from the machine running Packer.
 
 ```sh
-tail -f /home/ubuntu/setup.log
+cd packer
+packer init .
+packer validate -var pryv_tag=2.0.0-rc.41 .
+packer build -var pryv_tag=2.0.0-rc.41 -var 'zones=["ch-gva-2"]' -var 'name_suffix= (test)' .
 ```
 
-During the setup phase, the script will wait until you add the DNS A record. 
+Variables (see [`variables.pkrvars.hcl.example`](packer/variables.pkrvars.hcl.example)): `pryv_tag` (required, an open-pryv.io release published on Docker Hub, 2.0.0-rc.38 or later), `build` (template build number for that tag, default `1`), `zones`, `name_suffix`, `base_template`, `boot_mode` (must match the base template), `security_group`.
 
-### Verify
+The build fails early if the release's install wizard does not accept every answer of `init-answers.template.yml` (checked with `init --dry-run`), so an incompatible release never reaches a user's first boot.
 
-Your Open Pryv.io platform is now running at `https://${HOSTNAME}/`.  
-You should get a service information similar to the one below:
+## Releasing a template
 
-```
-{
-  "meta": {
-    "apiVersion": "1.5.24-open",
-    "serverTime": 1601379119.307,
-    "serial": "t1591793506"
-  },
-  "cheersFrom": "Pryv API",
-  "learnMoreAt": "https://api.pryv.com/"
-}
-```
+1. Build with a test suffix in one zone, launch an instance from it following the [user guide](docs/README.md) (with `PRYV_LE_STAGING=true` while iterating), and check: the setup log ends with `ready`, `service/info` reports the expected version, an account can be created, the service comes back after a reboot. Delete the test template afterwards.
+2. Tag this repository `<open-pryv.io tag>-<build>` (e.g. `2.0.0-rc.41-1`).
+3. Build with the final name in every zone: `packer build -var pryv_tag=<tag> -var build=<build> -var 'zones=[...]' .`
+4. Record each zone's template UUID in [`TEMPLATES.md`](TEMPLATES.md).
+5. Send the template name, version and UUIDs to Exoscale for the Marketplace listing, and update the launch button in [`docs/README.md`](docs/README.md).
 
-Follow these steps to start using the platform: [Open Pryv.io - Start](https://github.com/pryv/open-pryv.io#start).
+## Checks before committing
 
-### What next
-
-You can personalize your Open Pryv.io platform and configure company email by following the [README of the git repo of Open-Pryv.io](https://github.com/pryv/open-pryv.io/).
-
-## Contribute 
-
-### How it works
-
-- The image is created with `./build.sh` (linux) or `./build-docker.sh` (Docker based for OSX) 
-- The image contains a set of tasks to be run at boot
-  1. Install necessary components
-  2. Clone Open Pryv.io from Github - So the latest version of Open Pryv.io is installed at first boot
-  3. Setup Open Pryv.io environment
-  4. Build Open Pryv.io
-  5. Run Open Pryv.io
-- The image should be uploaded on a HTTP server and published
-
-### Requirements
-
-- An exoscale account on exoscale with a registered SSH key without a password (in the examples `~/.ssh/exo.pub`, `~/.ssh/exo`)
-- To upload the image on exoscale:
-  - a "bucket" in "storage" (for the example `open-pryv-templates`)
-- [Exoscale Cli](https://github.com/exoscale/cli) installed with an **IAM API key** with **write** permission on the bucket. (In the example it's installed under ./cli/)
-- On **OSX** you need to have [Docker](https://docs.docker.com/docker-for-mac/install/) installed.
-
-### Build Image
-
-To modify the image or add modules, you can modify the file `openpryv/script.sh` and/or add files in `openpryv/` and add them in the build by modifying `openpryv/packer.json`.
-
-To build a new image, use the SSH key registered in Exoscale (for example `~/.ssh/exo.pub`and `~/.ssh/exo`).  
-*be patient, it can be fairly long*
-
-- On MacOS, you have to start a docker daemon and run at the root of the project: 
-  
-```bash
-PACKER_PUBLIC_KEY=~/.ssh/exo.pub PACKER_PRIVATE_KEY=~/.ssh/exo ./build-docker.sh OPENPRYV
+```sh
+packer fmt -check packer
+shellcheck packer/scripts/*.sh image/opt/pryv/first-boot.sh image/etc/update-motd.d/90-pryv
 ```
 
-- On Linux, at the root of the project run: 
+## License
 
-```bash
-PACKER_PUBLIC_KEY=~/.ssh/exo.pub PACKER_PRIVATE_KEY=~/.ssh/exo ./build.sh OPENPRYV
-```
-
-On success the image will be created in `./output-qemu/openpryv.qcow2`
-
-### Upload Image on Exoscale Bucket
-
-Using Exoscale CLI: `path_to_exoscale_cli/exo sos upload open-pryv-templates ./output-qemu/openpryv.qcow2`
-
-Then you can connect to the  [Exoscale Console](https://portal.exoscale.com/) and go to Storage. Click on your bucket and you can normally see `openpryv.qcow2`.
-
-### References
-
-Creating Custom Templates [Using Packer](https://www.exoscale.com/syslog/creating-custom-templates-using-packer/)
-
-To create a template, you have to host the image on a publicly accessible HTTPS service such as Exoscale [Object Storage](https://community.exoscale.com/documentation/storage/), as you will need to indicate a URL pointing to it during template registration. Click on it, and at the bottom of the page, click on `Quick ACL` and then on `public read`.
-
-
-To create a new template, you have to connect to your [Exoscale Console](https://portal.exoscale.com/), and go to Compute/Templates. You can select the data center of your choice and click on `register`. Then you can indicate the name of the template and the description. You add also the URL to the image and the md5 of the image (run `md5 ./output-qemu/openpryv.qcow2`). The username is `ubuntu`.
-
-Note that you have to create a new template for each data center you want to use.
-
-![Create template](./docs/images/create_template.png)
-
-## Marketplace
-
-- Informations on the [Marketplace & Templates](https://community.exoscale.com/documentation/vendor/marketplace-templates/)  
-- Templates [Technical Requirements](https://community.exoscale.com/documentation/vendor/marketplace-templates-tech-requirements/)  
-
-## Publishing Market place documentation page. 
-
-A short documentation on how to deploy the image is published on `gh-pages`.  
-The source for this page is located in `./docs/` directory and the paged is build by **jekyll** based on `./docs/README.md`
-
-It will be updated based on the latest version in the `master` branch and accesible by [https://pryv.github.io/image-exoscale-open-pryv.io/](https://pryv.github.io/image-exoscale-open-pryv.io/)
+[BSD-3-Clause](LICENSE)

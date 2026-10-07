@@ -1,6 +1,7 @@
 .DS_Store
-openpryv/user-data
-output-qemu/
+# Packer local state and downloaded snapshots
 packer_cache/
-cli/
-seed.img
+output/
+# Local variable files may carry credentials: only the .example is tracked
+*.pkrvars.hcl
+!*.pkrvars.hcl.example

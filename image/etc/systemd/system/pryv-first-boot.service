@@ -1,0 +1,11 @@
+[Unit]
+Description=Open Pryv.io first-boot setup
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+ConditionPathExists=!/opt/pryv/.initialized
+
+[Service]
+Type=oneshot
+ExecStart=/opt/pryv/first-boot.sh
+# Waits for DNS (up to 2 h) and for the first certificate
+TimeoutStartSec=infinity
