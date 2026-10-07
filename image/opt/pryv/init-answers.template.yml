@@ -11,6 +11,7 @@ service.name: '${PRYV_SERVICE_NAME}'
 secrets.autogenerate: true
 authui.url: '${PRYV_AUTHUI_URL}'
 tls.strategy: letsEncrypt
+# Optional ACME account contact: empty registers the account without one
 le.email: '${PRYV_EMAIL}'
 # The wizard defaults to the Let's Encrypt staging CA: production unless
 # PRYV_LE_STAGING=true is set (test launches only).

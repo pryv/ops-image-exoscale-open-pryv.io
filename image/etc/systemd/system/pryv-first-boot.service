@@ -6,6 +6,8 @@ ConditionPathExists=!/opt/pryv/.initialized
 
 [Service]
 Type=oneshot
+# Stays active once done, so pryv-first-boot.path does not trigger it again
+RemainAfterExit=yes
 ExecStart=/opt/pryv/first-boot.sh
 # Waits for DNS (up to 2 h) and for the first certificate
 TimeoutStartSec=infinity

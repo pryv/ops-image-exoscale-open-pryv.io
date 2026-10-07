@@ -3,7 +3,7 @@
 Deploy [Open Pryv.io](https://github.com/pryv/open-pryv.io) from the Exoscale [Marketplace](https://www.exoscale.com/marketplace/listing/open-pryv-io/) in a few minutes: a single server with its own HTTPS certificate, ready to register users.
 
 <center>
-<button name="button" onclick="window.location.href='https://portal.exoscale.com/compute/instances/add?template-name=Open%20Pryv.io%202.0.0-rc.41&instance-type=Small&disk=20'">Launch Open Pryv.io on Exoscale</button><br>
+<button name="button" onclick="window.location.href='https://portal.exoscale.com/compute/instances/add?template-name=Open%20Pryv.io%202.0.0-rc.43&instance-type=Small&disk=20'">Launch Open Pryv.io on Exoscale</button><br>
 (requires an Exoscale account)
 </center>
 
@@ -11,8 +11,7 @@ Open Pryv.io 2.0 is a **release candidate**. This template runs the official `pr
 
 ## What you need
 
-- **A host name** for the server, e.g. `pryv.example.com`, in a DNS zone you control. You will point its DNS A record at the instance once it has an IP address.
-- **An email address** for Let's Encrypt (certificate expiry notices).
+Only **a host name** for the server, e.g. `pryv.example.com`, in a DNS zone you control. You will point its DNS A record at the instance once it has an IP address.
 
 ## 1. Security group
 
@@ -26,7 +25,7 @@ In the Exoscale portal, create a security group (e.g. `pryv`) with these inbound
 
 ## 2. Create the instance
 
-Pick the **Open Pryv.io** template, a **Small** instance or larger, a disk of **20 GB** or more, your SSH key and the `pryv` security group. In **User Data**, paste the snippet below (including the `#cloud-config` line) with your own host name and email:
+Pick the **Open Pryv.io** template, a **Small** instance or larger, a disk of **20 GB** or more, your SSH key and the `pryv` security group. In **User Data**, paste the snippet below (including the `#cloud-config` line) with your own host name:
 
 ```yaml
 #cloud-config
@@ -35,13 +34,13 @@ write_files:
     permissions: '0600'
     content: |
       PRYV_HOSTNAME=pryv.example.com
-      PRYV_EMAIL=you@example.com
 ```
 
 Optional settings, one per line in the same file:
 
 | Setting | Default | Meaning |
 |---------|---------|---------|
+| `PRYV_EMAIL=you@example.com` | none | Contact address of the Let's Encrypt account (Let's Encrypt no longer sends expiry emails) |
 | `PRYV_SERVICE_NAME="My Platform"` | `Open Pryv.io` | Name shown to apps |
 | `PRYV_AUTHUI_URL=https://...` | `https://account.pryv.me` | Sign-in and account pages ([app-web-user-account](https://github.com/pryv/app-web-user-account)); host your own to brand them |
 | `PRYV_LE_STAGING=true` | `false` | Use the Let's Encrypt staging CA (untrusted certificate, for tests only) |
@@ -64,6 +63,8 @@ The setup runs the Open Pryv.io install wizard, then starts the server, which ob
 
 If you skipped the User Data, write `/opt/pryv/first-boot.env` yourself (as root, same content as above): the setup starts as soon as the file exists.
 
+If the setup stops with an `ERROR` line (for example a mistyped host name), correct `/opt/pryv/first-boot.env`, then run `sudo systemctl restart pryv-first-boot`.
+
 ## 5. Verify
 
 ```sh
@@ -74,7 +75,7 @@ answers with your platform's description, for example:
 
 ```json
 {
-  "meta": { "apiVersion": "2.0.0-rc.41", "serverTime": 1791373164.65, "serial": "20261007" },
+  "meta": { "apiVersion": "2.0.0-rc.43", "serverTime": 1791373164.65, "serial": "20261007" },
   "name": "Open Pryv.io",
   "api": "https://pryv.example.com/{username}/",
   "register": "https://pryv.example.com/reg/",
@@ -89,7 +90,7 @@ Then create a first account and app access: see [Open Pryv.io, getting started](
 | What | Where |
 |------|-------|
 | Service | `sudo systemctl status pryv`, logs: `sudo journalctl -u pryv` |
-| Configuration, including the admin key | `/opt/pryv/pryv-config.yml` (root only) |
+| Configuration, including the admin key | `/opt/pryv/pryv-config.yml` (mode 0600, owned by uid 1000: the server's user, which is also the `ubuntu` login user) |
 | Data (accounts, attachments, certificates, platform database) | `/opt/pryv/data` |
 | Setup answers | `/opt/pryv/init-answers.yml` |
 

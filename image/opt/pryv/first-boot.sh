@@ -44,8 +44,8 @@ PRYV_LE_STAGING="${PRYV_LE_STAGING:-false}"
 
 [[ "$PRYV_HOSTNAME" =~ ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$ ]] \
   || fail "PRYV_HOSTNAME must be a fully qualified host name (got '$PRYV_HOSTNAME')"
-[[ "$PRYV_EMAIL" =~ ^[^[:space:]\'@]+@[^[:space:]\'@]+\.[^[:space:]\'@]+$ ]] \
-  || fail "PRYV_EMAIL must be an email address (got '$PRYV_EMAIL')"
+[[ -z "$PRYV_EMAIL" || "$PRYV_EMAIL" =~ ^[^[:space:]\'@]+@[^[:space:]\'@]+\.[^[:space:]\'@]+$ ]] \
+  || fail "PRYV_EMAIL, when set, must be an email address (got '$PRYV_EMAIL')"
 [[ "$PRYV_AUTHUI_URL" =~ ^https://[^[:space:]\']+$ ]] \
   || fail "PRYV_AUTHUI_URL must be an https:// URL (got '$PRYV_AUTHUI_URL')"
 [[ "$PRYV_LE_STAGING" == true || "$PRYV_LE_STAGING" == false ]] \
@@ -69,6 +69,7 @@ else
   umask 022
 
   ## 3. Install wizard, unattended (the documented `docker run ... init`)
+  mkdir -p "$CONFIG_DIR/data"
   log "running the open-pryv.io install wizard"
   docker run --rm -v "$CONFIG_DIR:/app/pryv" "$PRYV_IMAGE" \
     init --non-interactive --config-from=/app/pryv/init-answers.yml \
@@ -126,4 +127,4 @@ until curl "${curl_opts[@]}" "https://$PRYV_HOSTNAME/reg/service/info" > /dev/nu
   waited=$((waited + 15))
 done
 log "ready: https://$PRYV_HOSTNAME/reg/service/info"
-log "configuration and admin key: $CONFIG_FILE (root only)"
+log "configuration and admin key: $CONFIG_FILE (readable by root and uid 1000, the server user)"

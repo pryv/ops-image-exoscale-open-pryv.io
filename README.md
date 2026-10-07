@@ -39,18 +39,18 @@ Requirements:
 ```sh
 cd packer
 packer init .
-packer validate -var pryv_tag=2.0.0-rc.41 .
-packer build -var pryv_tag=2.0.0-rc.41 -var 'zones=["ch-gva-2"]' -var 'name_suffix= (test)' .
+packer validate -var pryv_tag=2.0.0-rc.43 .
+packer build -var pryv_tag=2.0.0-rc.43 -var 'zones=["ch-gva-2"]' -var 'name_suffix= (test)' .
 ```
 
-Variables (see [`variables.pkrvars.hcl.example`](packer/variables.pkrvars.hcl.example)): `pryv_tag` (required, an open-pryv.io release published on Docker Hub, 2.0.0-rc.38 or later), `build` (template build number for that tag, default `1`), `zones`, `name_suffix`, `base_template`, `boot_mode` (must match the base template), `security_group`.
+Variables (see [`variables.pkrvars.hcl.example`](packer/variables.pkrvars.hcl.example)): `pryv_tag` (required, an open-pryv.io release published on Docker Hub, 2.0.0-rc.43 or later: the first whose install wizard accepts an empty Let's Encrypt email, which the build checks), `build` (template build number for that tag, default `1`), `zones`, `name_suffix`, `base_template`, `boot_mode` (must match the base template), `security_group`.
 
 The build fails early if the release's install wizard does not accept every answer of `init-answers.template.yml` (checked with `init --dry-run`), so an incompatible release never reaches a user's first boot.
 
 ## Releasing a template
 
 1. Build with a test suffix in one zone, launch an instance from it following the [user guide](docs/README.md) (with `PRYV_LE_STAGING=true` while iterating), and check: the setup log ends with `ready`, `service/info` reports the expected version, an account can be created, the service comes back after a reboot. Delete the test template afterwards.
-2. Tag this repository `<open-pryv.io tag>-<build>` (e.g. `2.0.0-rc.41-1`).
+2. Tag this repository `<open-pryv.io tag>-<build>` (e.g. `2.0.0-rc.43-1`).
 3. Build with the final name in every zone: `packer build -var pryv_tag=<tag> -var build=<build> -var 'zones=[...]' .`
 4. Record each zone's template UUID in [`TEMPLATES.md`](TEMPLATES.md).
 5. Send the template name, version and UUIDs to Exoscale for the Marketplace listing, and update the launch button in [`docs/README.md`](docs/README.md).

@@ -31,20 +31,26 @@ docker pull "$IMAGE"
 
 # The wizard answers must be accepted by this release's wizard: check it now,
 # so an incompatible release fails the build instead of the user's first boot.
-echo "INFO[${SCRIPT}]: Checking the install wizard answers against ${IMAGE} ..."
-check_dir="$(mktemp -d)"
-# shellcheck disable=SC2016 # literal variable list for envsubst
-PRYV_HOSTNAME=pryv.example.com PRYV_EMAIL=ops@example.com PRYV_SERVICE_NAME='Open Pryv.io' \
-  PRYV_AUTHUI_URL=https://account.pryv.me PRYV_LE_STAGING=false \
-  envsubst '${PRYV_HOSTNAME} ${PRYV_EMAIL} ${PRYV_SERVICE_NAME} ${PRYV_AUTHUI_URL} ${PRYV_LE_STAGING}' \
-  < /opt/pryv/init-answers.template.yml > "$check_dir/init-answers.yml"
-docker run --rm -v "$check_dir:/app/pryv" "$IMAGE" \
-  init --non-interactive --dry-run --config-from=/app/pryv/init-answers.yml | tee "$check_dir/out.txt"
-if grep -q 'keys no prompt asked for' "$check_dir/out.txt"; then
-  echo "ERROR[${SCRIPT}]: the wizard of ${IMAGE} ignores some of the answers (see above)" >&2
-  exit 1
-fi
-rm -rf "$check_dir"
+# Both with and without PRYV_EMAIL, which is optional.
+check_answers () {
+  local email="$1" check_dir
+  echo "INFO[${SCRIPT}]: Checking the install wizard answers against ${IMAGE} (email: '${email}') ..."
+  check_dir="$(mktemp -d)"
+  # shellcheck disable=SC2016 # literal variable list for envsubst
+  PRYV_HOSTNAME=pryv.example.com PRYV_EMAIL="$email" PRYV_SERVICE_NAME='Open Pryv.io' \
+    PRYV_AUTHUI_URL=https://account.pryv.me PRYV_LE_STAGING=false \
+    envsubst '${PRYV_HOSTNAME} ${PRYV_EMAIL} ${PRYV_SERVICE_NAME} ${PRYV_AUTHUI_URL} ${PRYV_LE_STAGING}' \
+    < /opt/pryv/init-answers.template.yml > "$check_dir/init-answers.yml"
+  docker run --rm -v "$check_dir:/app/pryv" "$IMAGE" \
+    init --non-interactive --dry-run --config-from=/app/pryv/init-answers.yml | tee "$check_dir/out.txt"
+  if grep -q 'keys no prompt asked for' "$check_dir/out.txt"; then
+    echo "ERROR[${SCRIPT}]: the wizard of ${IMAGE} ignores some of the answers (see above)" >&2
+    exit 1
+  fi
+  rm -rf "$check_dir"
+}
+check_answers ops@example.com
+check_answers ''
 
 systemctl daemon-reload
 systemctl enable pryv-first-boot.path
