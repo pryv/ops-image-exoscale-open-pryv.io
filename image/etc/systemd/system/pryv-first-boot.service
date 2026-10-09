@@ -8,6 +8,9 @@ ConditionPathExists=!/opt/pryv/.initialized
 Type=oneshot
 # Stays active once done, so pryv-first-boot.path does not trigger it again
 RemainAfterExit=yes
+# 3 = stopped on an ERROR it logged: stay active too (no re-trigger loop); after a fix,
+# `systemctl restart pryv-first-boot` runs it again
+SuccessExitStatus=3
 ExecStart=/opt/pryv/first-boot.sh
 # Waits for DNS (up to 2 h) and for the first certificate
 TimeoutStartSec=infinity

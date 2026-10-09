@@ -21,8 +21,9 @@ EOF
 else
   cat <<'EOF'
 
- Open Pryv.io is not configured yet. Write /opt/pryv/first-boot.env (as root):
-   PRYV_HOSTNAME=pryv.example.com     (its DNS A record must point to this instance)
+ Open Pryv.io is not configured yet. Write /opt/pryv/first-boot.env (as root)
+ with your host name, whose DNS A record must point to this instance:
+   PRYV_HOSTNAME=pryv.example.com
  Setup then starts by itself:  tail -f /var/log/pryv-first-boot.log
  Documentation: https://pryv.github.io/ops-image-exoscale-open-pryv.io/
 

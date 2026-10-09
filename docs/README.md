@@ -20,7 +20,7 @@ In the Exoscale portal, create a security group (e.g. `pryv`) with these inbound
 | Port | Protocol | Why |
 |------|----------|-----|
 | 443  | TCP | HTTPS (the API) |
-| 80   | TCP | Let's Encrypt certificate validation, HTTP to HTTPS |
+| 80   | TCP | Let's Encrypt certificate validation (nothing else is served over plain HTTP) |
 | 22   | TCP | SSH, for you |
 
 ## 2. Create the instance
@@ -64,6 +64,22 @@ The setup runs the Open Pryv.io install wizard, then starts the server, which ob
 If you skipped the User Data, write `/opt/pryv/first-boot.env` yourself (as root, same content as above): the setup starts as soon as the file exists.
 
 If the setup stops with an `ERROR` line (for example a mistyped host name), correct `/opt/pryv/first-boot.env`, then run `sudo systemctl restart pryv-first-boot`.
+
+To stop the setup while it runs (for example while it waits for DNS), stop both units, otherwise it starts again by itself:
+
+```sh
+sudo systemctl stop pryv-first-boot.path pryv-first-boot
+```
+
+To start over with another host name, before the platform holds any data you want to keep (this deletes the generated configuration, its secrets and all data):
+
+```sh
+sudo systemctl stop pryv-first-boot.path pryv-first-boot pryv
+sudo systemctl disable pryv
+sudo rm -rf /opt/pryv/pryv-config.yml /opt/pryv/data /opt/pryv/.initialized
+```
+
+Then correct `/opt/pryv/first-boot.env` and run `sudo systemctl start pryv-first-boot.path`: the setup runs again from the start.
 
 ## 5. Verify
 

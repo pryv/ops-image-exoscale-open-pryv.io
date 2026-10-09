@@ -60,9 +60,9 @@ variable "base_template" {
 }
 
 variable "boot_mode" {
-  description = "Boot mode of the registered template: must match the base template (legacy or uefi)."
+  description = "Boot mode of the registered template: must match the base template (legacy or uefi; the stock Ubuntu 24.04 template boots uefi)."
   type        = string
-  default     = "legacy"
+  default     = "uefi"
 }
 
 variable "security_group" {
@@ -118,6 +118,7 @@ build {
       "${path.root}/scripts/exoscale/machine-id-reset.sh",
       "${path.root}/scripts/exoscale/lock-root.sh",
       "${path.root}/scripts/exoscale/freespace-zero.sh",
+      "${path.root}/scripts/98-journal-reset.sh",
       "${path.root}/scripts/99-ssh-reset.sh",
     ]
   }
