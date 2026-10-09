@@ -3,7 +3,7 @@
 Deploy [Open Pryv.io](https://github.com/pryv/open-pryv.io) from the Exoscale [Marketplace](https://www.exoscale.com/marketplace/listing/open-pryv-io/) in a few minutes: a single server with its own HTTPS certificate, ready to register users.
 
 <center>
-<button name="button" onclick="window.location.href='https://portal.exoscale.com/compute/instances/add?template-name=Open%20Pryv.io%202.0.0-rc.43&instance-type=Small&disk=20'">Launch Open Pryv.io on Exoscale</button><br>
+<button name="button" onclick="window.location.href='https://portal.exoscale.com/compute/instances/add?template-name=Open%20Pryv.io%202.0.0-rc.43'">Launch Open Pryv.io on Exoscale</button><br>
 (requires an Exoscale account)
 </center>
 

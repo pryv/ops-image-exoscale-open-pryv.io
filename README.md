@@ -28,7 +28,7 @@ No configuration and no secret is baked in: every instance generates its own at 
 
 ## Building a template
 
-The build runs on Exoscale: Packer starts an instance from the stock Ubuntu template, provisions it over SSH, stops it, snapshots it and registers the snapshot as a template in the first zone of `zones`, then copies it to the other zones (one template UUID per zone).
+The build runs on Exoscale: Packer starts an instance from the stock Ubuntu template, provisions it over SSH, stops it, snapshots it and registers the snapshot as a template in the first zone of `zones`, then copies it to the other zones (the copies keep the same template ID).
 
 Requirements:
 
@@ -52,8 +52,8 @@ The build fails early if the release's install wizard does not accept every answ
 1. Build with a test suffix in one zone, launch an instance from it following the [user guide](docs/README.md) (with `PRYV_LE_STAGING=true` while iterating), and check: the setup log ends with `ready`, `service/info` reports the expected version, an account can be created, the service comes back after a reboot. Delete the test template afterwards.
 2. Tag this repository `<open-pryv.io tag>-<build>` (e.g. `2.0.0-rc.43-1`).
 3. Build with the final name in every zone: `packer build -var pryv_tag=<tag> -var build=<build> -var 'zones=[...]' .`
-4. Record each zone's template UUID in [`TEMPLATES.md`](TEMPLATES.md).
-5. Send the template name, version and UUIDs to Exoscale for the Marketplace listing, and update the launch button in [`docs/README.md`](docs/README.md).
+4. Record the template ID and its zones in [`TEMPLATES.md`](TEMPLATES.md) (check each zone with `exo compute instance-template list --visibility private --zone <zone>`).
+5. Send the template name, version and ID to Exoscale support (a ticket to support@exoscale.com) for the Marketplace listing, and update the launch button in [`docs/README.md`](docs/README.md).
 
 ## Checks before committing
 

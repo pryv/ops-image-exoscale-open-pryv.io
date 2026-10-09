@@ -3,7 +3,7 @@
 # Builds on Exoscale itself: Packer starts an instance from the stock Ubuntu
 # template, provisions it over SSH, snapshots it and registers the snapshot as
 # a custom template in every zone of `zones` (registered in the first zone,
-# then copied to the others; each zone gets its own template UUID).
+# then copied to the others; the copies keep the same template ID).
 #
 # Usage: see README.md ("Building a template").
 
