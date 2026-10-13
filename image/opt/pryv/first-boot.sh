@@ -2,7 +2,8 @@
 # Open Pryv.io first-boot setup.
 #
 # Triggered by pryv-first-boot.path as soon as /opt/pryv/first-boot.env exists
-# (written by the instance user-data, or by hand). Runs the open-pryv.io install
+# (written by the instance user-data, or by hand). Picks the Open Pryv.io release
+# (PRYV_VERSION), verifies its signature and pulls it, runs the open-pryv.io install
 # wizard unattended, then starts pryv.service. Log: /var/log/pryv-first-boot.log
 set -Eeuo pipefail
 
@@ -33,9 +34,12 @@ trap 'fail "unexpected error at line $LINENO (output above)"' ERR
 
 log "starting"
 
+# shellcheck source-path=SCRIPTDIR source=lib.sh
+. "$CONFIG_DIR/lib.sh"
+# PRYV_IMAGE stays empty until a release has been resolved, verified and pulled
+PRYV_IMAGE=""
 # shellcheck source=/dev/null
 . /etc/default/pryv
-[ -n "${PRYV_IMAGE:-}" ] || fail "PRYV_IMAGE missing in /etc/default/pryv"
 
 ## 1. Settings from first-boot.env: parsed as KEY=value lines, never executed
 [ -f "$ENV_FILE" ] || fail "$ENV_FILE not found; see /etc/motd for how to write it"
@@ -44,6 +48,7 @@ PRYV_EMAIL=""
 PRYV_SERVICE_NAME=""
 PRYV_AUTHUI_URL=""
 PRYV_LE_STAGING=""
+PRYV_VERSION=""
 line_no=0
 while IFS= read -r line || [ -n "$line" ]; do
   line_no=$((line_no + 1))
@@ -56,16 +61,17 @@ while IFS= read -r line || [ -n "$line" ]; do
   # One pair of matching quotes around the whole value is removed
   if [[ "$value" =~ ^\"(.*)\"$ || "$value" =~ ^\'(.*)\'$ ]]; then value="${BASH_REMATCH[1]}"; fi
   case "$key" in
-    PRYV_HOSTNAME|PRYV_EMAIL|PRYV_SERVICE_NAME|PRYV_AUTHUI_URL|PRYV_LE_STAGING)
+    PRYV_HOSTNAME|PRYV_EMAIL|PRYV_SERVICE_NAME|PRYV_AUTHUI_URL|PRYV_LE_STAGING|PRYV_VERSION)
       printf -v "$key" '%s' "$value" ;;
     *)
-      fail "$ENV_FILE line $line_no: unknown setting $key (known: PRYV_HOSTNAME, PRYV_EMAIL, PRYV_SERVICE_NAME, PRYV_AUTHUI_URL, PRYV_LE_STAGING)" ;;
+      fail "$ENV_FILE line $line_no: unknown setting $key (known: PRYV_HOSTNAME, PRYV_EMAIL, PRYV_SERVICE_NAME, PRYV_AUTHUI_URL, PRYV_LE_STAGING, PRYV_VERSION)" ;;
   esac
 done < "$ENV_FILE"
 
 PRYV_SERVICE_NAME="${PRYV_SERVICE_NAME:-Open Pryv.io}"
 PRYV_AUTHUI_URL="${PRYV_AUTHUI_URL:-https://account.pryv.me}"
 PRYV_LE_STAGING="${PRYV_LE_STAGING:-false}"
+PRYV_VERSION="${PRYV_VERSION:-latest}"
 
 [[ "$PRYV_HOSTNAME" =~ ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$ ]] \
   || fail "PRYV_HOSTNAME must be a fully qualified host name (got '$PRYV_HOSTNAME')"
@@ -77,11 +83,13 @@ PRYV_LE_STAGING="${PRYV_LE_STAGING:-false}"
   || fail "PRYV_LE_STAGING must be true or false (got '$PRYV_LE_STAGING')"
 [[ "$PRYV_SERVICE_NAME" =~ ^[^[:cntrl:]]{1,100}$ ]] \
   || fail "PRYV_SERVICE_NAME must be 1 to 100 printable characters"
+[[ "$PRYV_VERSION" =~ ^(latest|latest-stable|[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?)$ ]] \
+  || fail "PRYV_VERSION must be latest, latest-stable or a release such as 2.0.0-rc.50 (got '$PRYV_VERSION')"
 # Single-quoted YAML scalar: a quote is written as two quotes
 PRYV_SERVICE_NAME="${PRYV_SERVICE_NAME//\'/\'\'}"
 export PRYV_HOSTNAME PRYV_EMAIL PRYV_SERVICE_NAME PRYV_AUTHUI_URL PRYV_LE_STAGING
 
-log "host: $PRYV_HOSTNAME, image: $PRYV_IMAGE, Let's Encrypt staging: $PRYV_LE_STAGING"
+log "host: $PRYV_HOSTNAME, version: $PRYV_VERSION, Let's Encrypt staging: $PRYV_LE_STAGING"
 
 if [ -f "$CONFIG_FILE" ]; then
   log "$CONFIG_FILE already exists: keeping it (the wizard is not re-run)"
@@ -92,7 +100,30 @@ else
   envsubst '${PRYV_HOSTNAME} ${PRYV_EMAIL} ${PRYV_SERVICE_NAME} ${PRYV_AUTHUI_URL} ${PRYV_LE_STAGING}' \
     < "$ANSWERS_TEMPLATE" > "$ANSWERS_FILE"
   umask 022
+fi
 
+## 2b. The Open Pryv.io release: resolved, signature-verified and pulled once
+if [ -n "$PRYV_IMAGE" ]; then
+  log "image already chosen: ${PRYV_IMAGE_TAG:-?} ($PRYV_IMAGE); to change it, use /opt/pryv/pryv-upgrade.sh"
+else
+  log "resolving Open Pryv.io version '$PRYV_VERSION' (Docker Hub, then signature check)"
+  resolved="$("$CONFIG_DIR/resolve-image.sh" --pull "$PRYV_VERSION")" \
+    || fail "could not get a verified Open Pryv.io image for PRYV_VERSION=$PRYV_VERSION (reason above)"
+  read -r image_tag image_digest <<< "$resolved"
+  if [ -f "$ANSWERS_FILE" ] && [ ! -f "$CONFIG_FILE" ]; then
+    log "checking the wizard answers against $image_tag"
+    pryv_check_answers "pryvio/open-pryv.io@$image_digest" "$ANSWERS_FILE" \
+      || fail "release $image_tag does not accept this template's wizard answers; set PRYV_VERSION to another release"
+  fi
+  pryv_write_settings "$image_tag" "$image_digest" "$PRYV_VERSION"
+  pryv_write_version_note "$image_tag" "$PRYV_VERSION"
+  [ -f "$CONFIG_DIR/version-note" ] && log "WARNING: $(cat "$CONFIG_DIR/version-note")"
+  # shellcheck source=/dev/null
+  . /etc/default/pryv
+  log "using Open Pryv.io $PRYV_IMAGE_TAG ($PRYV_IMAGE)"
+fi
+
+if [ ! -f "$CONFIG_FILE" ]; then
   ## 3. Install wizard, unattended (the documented `docker run ... init`)
   mkdir -p "$CONFIG_DIR/data"
   log "running the open-pryv.io install wizard"

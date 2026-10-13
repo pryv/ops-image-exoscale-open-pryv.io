@@ -2,17 +2,16 @@
 SCRIPT="${0##*/}"
 set -euo pipefail
 
-## Open Pryv.io: files, pinned image, first-boot units
-: "${PRYV_TAG:?PRYV_TAG is required}"
-IMAGE="pryvio/open-pryv.io:${PRYV_TAG}"
+## Open Pryv.io: files and first-boot units. No image is baked in: the release
+## is chosen, verified and pulled at first boot (PRYV_VERSION).
 SRC=/tmp/image
 
-echo "INFO[${SCRIPT}]: Installing Open Pryv.io files for ${IMAGE} ..."
+echo "INFO[${SCRIPT}]: Installing Open Pryv.io files ..."
 install -d -m 0755 /opt/pryv
-install -m 0644 "$SRC/opt/pryv/init-answers.template.yml" /opt/pryv/
-install -m 0755 "$SRC/opt/pryv/first-boot.sh" /opt/pryv/
+install -m 0644 "$SRC/opt/pryv/init-answers.template.yml" "$SRC/opt/pryv/lib.sh" /opt/pryv/
+install -m 0755 "$SRC/opt/pryv/first-boot.sh" "$SRC/opt/pryv/resolve-image.sh" \
+  "$SRC/opt/pryv/pryv-upgrade.sh" /opt/pryv/
 install -m 0644 "$SRC/etc/default/pryv" /etc/default/pryv
-sed -i "s|__PRYV_TAG__|${PRYV_TAG}|" /etc/default/pryv
 install -m 0644 "$SRC"/etc/systemd/system/pryv* /etc/systemd/system/
 install -m 0755 "$SRC/etc/update-motd.d/90-pryv" /etc/update-motd.d/
 rm -rf "$SRC"
@@ -26,31 +25,37 @@ cat > /etc/docker/daemon.json <<'EOF'
 EOF
 systemctl restart docker
 
-echo "INFO[${SCRIPT}]: Pulling ${IMAGE} ..."
-docker pull "$IMAGE"
-
-# The wizard answers must be accepted by this release's wizard: check it now,
-# so an incompatible release fails the build instead of the user's first boot.
-# Both with and without PRYV_EMAIL, which is optional.
-check_answers () {
-  local email="$1" check_dir
-  echo "INFO[${SCRIPT}]: Checking the install wizard answers against ${IMAGE} (email: '${email}') ..."
-  check_dir="$(mktemp -d)"
+## Smoke test of the first-boot chain with the release current at build time:
+## tag listing, signature check, pull by digest, wizard answers (with and
+## without the optional email). Then every image is removed again.
+# shellcheck source-path=SCRIPTDIR source=../../image/opt/pryv/lib.sh
+. /opt/pryv/lib.sh
+echo "INFO[${SCRIPT}]: Resolving latest-stable (a WARNING is expected while no final 2.x exists) ..."
+/opt/pryv/resolve-image.sh latest-stable
+echo "INFO[${SCRIPT}]: Resolving and pulling latest ..."
+resolved="$(/opt/pryv/resolve-image.sh --pull latest)"
+read -r tag digest <<< "$resolved"
+check_dir="$(mktemp -d)"
+for email in ops@example.com ''; do
+  echo "INFO[${SCRIPT}]: Checking the install wizard answers against ${tag} (email: '${email}') ..."
   # shellcheck disable=SC2016 # literal variable list for envsubst
   PRYV_HOSTNAME=pryv.example.com PRYV_EMAIL="$email" PRYV_SERVICE_NAME='Open Pryv.io' \
     PRYV_AUTHUI_URL=https://account.pryv.me PRYV_LE_STAGING=false \
     envsubst '${PRYV_HOSTNAME} ${PRYV_EMAIL} ${PRYV_SERVICE_NAME} ${PRYV_AUTHUI_URL} ${PRYV_LE_STAGING}' \
     < /opt/pryv/init-answers.template.yml > "$check_dir/init-answers.yml"
-  docker run --rm -v "$check_dir:/app/pryv" "$IMAGE" \
-    init --non-interactive --dry-run --config-from=/app/pryv/init-answers.yml | tee "$check_dir/out.txt"
-  if grep -q 'keys no prompt asked for' "$check_dir/out.txt"; then
-    echo "ERROR[${SCRIPT}]: the wizard of ${IMAGE} ignores some of the answers (see above)" >&2
-    exit 1
-  fi
-  rm -rf "$check_dir"
-}
-check_answers ops@example.com
-check_answers ''
+  pryv_check_answers "pryvio/open-pryv.io@${digest}" "$check_dir/init-answers.yml"
+done
+rm -rf "$check_dir"
+
+echo "INFO[${SCRIPT}]: Removing the test image ..."
+docker image prune --all --force
+if [ -n "$(docker images --quiet)" ]; then
+  echo "ERROR[${SCRIPT}]: images left in the template:" >&2
+  docker images >&2
+  exit 1
+fi
+# cosign's trust root cache is fetched again at first boot
+rm -rf /root/.sigstore
 
 systemctl daemon-reload
 systemctl enable pryv-first-boot.path

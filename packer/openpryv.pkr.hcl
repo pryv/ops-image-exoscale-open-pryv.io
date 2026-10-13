@@ -3,7 +3,10 @@
 # Builds on Exoscale itself: Packer starts an instance from the stock Ubuntu
 # template, provisions it over SSH, snapshots it and registers the snapshot as
 # a custom template in every zone of `zones` (registered in the first zone,
-# then copied to the others; the copies keep the same template ID).
+# then copied to the others; the copies keep the same template ID). With
+# `snapshot_download`, the snapshot is also saved as a QCOW2 file in
+# `download_dir`, for publication (the export URL Exoscale returns expires).
+# No Open Pryv.io release is baked in: the instance picks it at first boot.
 #
 # Usage: see README.md ("Building a template").
 
@@ -30,15 +33,27 @@ variable "exoscale_api_secret" {
   sensitive   = true
 }
 
-variable "pryv_tag" {
-  description = "open-pryv.io release tag baked into the template, e.g. 2.0.0-rc.41."
+variable "image_version" {
+  description = "Version of this template (base system + setup scripts), e.g. 2.0; recorded as the template version."
   type        = string
 }
 
 variable "build" {
-  description = "Template build number for this pryv_tag (1, 2, ...), recorded as the template build."
+  description = "Build number for this image_version (1, 2, ...), recorded as the template build."
   type        = string
   default     = "1"
+}
+
+variable "snapshot_download" {
+  description = "Also save the snapshot as a QCOW2 file in download_dir (needed for a release)."
+  type        = bool
+  default     = true
+}
+
+variable "download_dir" {
+  description = "Directory the QCOW2 file is saved to when snapshot_download is set."
+  type        = string
+  default     = "output"
 }
 
 variable "zones" {
@@ -72,7 +87,7 @@ variable "security_group" {
 }
 
 locals {
-  template_name = "Open Pryv.io ${var.pryv_tag}${var.name_suffix}"
+  template_name = "Open Pryv.io${var.name_suffix}"
 }
 
 source "exoscale" "openpryv" {
@@ -84,12 +99,14 @@ source "exoscale" "openpryv" {
   instance_security_groups = [var.security_group]
   template_zones           = var.zones
   template_name            = local.template_name
-  template_description     = "Open Pryv.io ${var.pryv_tag}: personal data and consent management server. Setup: https://pryv.github.io/ops-image-exoscale-open-pryv.io/"
+  template_description     = "Open Pryv.io: personal data and consent management server. Installs the latest Open Pryv.io 2.x at first boot. Setup: https://pryv.github.io/ops-image-exoscale-open-pryv.io/"
   template_username        = "ubuntu"
   template_boot_mode       = var.boot_mode
   template_maintainer      = "Pryv"
-  template_version         = var.pryv_tag
+  template_version         = var.image_version
   template_build           = var.build
+  snapshot_download        = var.snapshot_download
+  snapshot_download_path   = var.download_dir
   ssh_username             = "ubuntu"
 }
 
@@ -104,12 +121,13 @@ build {
 
   provisioner "shell" {
     execute_command  = "chmod +x {{ .Path }}; sudo env {{ .Vars }} {{ .Path }}"
-    environment_vars = ["PRYV_TAG=${var.pryv_tag}", "PRYV_BUILD=${var.build}"]
+    environment_vars = ["PRYV_IMAGE_VERSION=${var.image_version}", "PRYV_BUILD=${var.build}"]
     scripts = [
       "${path.root}/scripts/exoscale/motd-news-telemetry-disable.sh",
       "${path.root}/scripts/exoscale/apt-dist-upgrade.sh",
       "${path.root}/scripts/10-base.sh",
       "${path.root}/scripts/20-docker.sh",
+      "${path.root}/scripts/25-cosign.sh",
       "${path.root}/scripts/30-pryv.sh",
       "${path.root}/scripts/exoscale/apt-cleanup.sh",
       "${path.root}/scripts/90-cloud-init-reset.sh",

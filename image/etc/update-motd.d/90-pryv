@@ -1,19 +1,26 @@
 #!/bin/sh
 # Open Pryv.io status shown at login
 if [ -f /opt/pryv/.initialized ]; then
-  cat <<'EOF'
+  tag="$(sed -n 's/^PRYV_IMAGE_TAG=//p' /etc/default/pryv)"
+  image="$(sed -n 's/^PRYV_IMAGE=//p' /etc/default/pryv)"
+  cat <<EOF
 
- Open Pryv.io
+ Open Pryv.io ${tag:-?}   image: ${image:-?}
    Service:        systemctl status pryv      logs: journalctl -u pryv
    Configuration:  /opt/pryv/pryv-config.yml  (holds the admin key; readable by root and ubuntu)
    Setup log:      /var/log/pryv-first-boot.log
-   Upgrade:        edit PRYV_IMAGE in /etc/default/pryv, docker pull it, systemctl restart pryv
-
+   Upgrade:        sudo /opt/pryv/pryv-upgrade.sh [latest|latest-stable|<version>]
 EOF
+  [ -f /opt/pryv/version-note ] && echo "   Note:           $(cat /opt/pryv/version-note)"
+  echo
 elif [ -f /opt/pryv/first-boot.env ]; then
   cat <<'EOF'
 
  Open Pryv.io setup is running:  tail -f /var/log/pryv-first-boot.log
+EOF
+  last_error="$(grep 'ERROR:' /var/log/pryv-first-boot.log 2>/dev/null | tail -n 1)"
+  [ -n "$last_error" ] && printf ' Last error: %s\n' "$last_error"
+  cat <<'EOF'
  If it stopped with an ERROR: fix /opt/pryv/first-boot.env, then
    sudo systemctl restart pryv-first-boot
 
@@ -24,6 +31,7 @@ else
  Open Pryv.io is not configured yet. Write /opt/pryv/first-boot.env (as root)
  with your host name, whose DNS A record must point to this instance:
    PRYV_HOSTNAME=pryv.example.com
+ Optional: PRYV_VERSION=latest (default), latest-stable or a release such as 2.0.0
  Setup then starts by itself:  tail -f /var/log/pryv-first-boot.log
  Documentation: https://pryv.github.io/ops-image-exoscale-open-pryv.io/
 

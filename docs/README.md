@@ -3,11 +3,11 @@
 Deploy [Open Pryv.io](https://github.com/pryv/open-pryv.io) from the Exoscale [Marketplace](https://www.exoscale.com/marketplace/listing/open-pryv-io/) in a few minutes: a single server with its own HTTPS certificate, ready to register users.
 
 <center>
-<button name="button" onclick="window.location.href='https://portal.exoscale.com/compute/instances/add?template-name=Open%20Pryv.io%202.0.0-rc.43'">Launch Open Pryv.io on Exoscale</button><br>
+<button name="button" onclick="window.location.href='https://portal.exoscale.com/compute/instances/add?template-name=Open%20Pryv.io'">Launch Open Pryv.io on Exoscale</button><br>
 (requires an Exoscale account)
 </center>
 
-Open Pryv.io 2.0 is a **release candidate**. This template runs the official `pryvio/open-pryv.io` Docker image on Ubuntu 24.04 LTS.
+The template is Ubuntu 24.04 LTS with Docker. At first boot it installs the **latest Open Pryv.io 2.x release** (or the one you choose, see `PRYV_VERSION` below) from the official `pryvio/open-pryv.io` Docker image, after verifying that the image was signed by the Open Pryv.io release workflow. Open Pryv.io 2.0 is currently a **release candidate**.
 
 ## What you need
 
@@ -22,6 +22,8 @@ In the Exoscale portal, create a security group (e.g. `pryv`) with these inbound
 | 443  | TCP | HTTPS (the API) |
 | 80   | TCP | Let's Encrypt certificate validation (nothing else is served over plain HTTP) |
 | 22   | TCP | SSH, for you |
+
+The setup also needs **outbound HTTPS** at first boot, to list and download the release from Docker Hub and to check its signature with Sigstore (`hub.docker.com`, `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`, `tuf-repo-cdn.sigstore.dev`, `rekor.sigstore.dev`). Exoscale security groups allow all outbound traffic unless you restrict it.
 
 ## 2. Create the instance
 
@@ -44,6 +46,7 @@ Optional settings, one per line in the same file:
 | `PRYV_SERVICE_NAME="My Platform"` | `Open Pryv.io` | Name shown to apps |
 | `PRYV_AUTHUI_URL=https://...` | `https://account.pryv.me` | Sign-in and account pages ([app-web-user-account](https://github.com/pryv/app-web-user-account)); host your own to brand them |
 | `PRYV_LE_STAGING=true` | `false` | Use the Let's Encrypt staging CA (untrusted certificate, for tests only) |
+| `PRYV_VERSION=latest-stable` | `latest` | Open Pryv.io release to install: `latest` (the newest release, release candidates included), `latest-stable` (the newest final release; until 2.0.0 is out, the newest release candidate, with a warning) or a release such as `2.0.0-rc.50` |
 
 Do not put secrets in User Data: any process on the instance can read it. The setup generates all secrets itself.
 
@@ -59,7 +62,7 @@ Connect with `ssh ubuntu@<instance IP>` and follow the log:
 sudo tail -f /var/log/pryv-first-boot.log
 ```
 
-The setup runs the Open Pryv.io install wizard, then starts the server, which obtains its Let's Encrypt certificate by itself. It usually takes a few minutes once DNS is in place, and ends with `ready: https://<your host>/reg/service/info`.
+The setup picks the Open Pryv.io release (`PRYV_VERSION`), verifies its signature, downloads it, runs the Open Pryv.io install wizard, then starts the server, which obtains its Let's Encrypt certificate by itself. It usually takes a few minutes once DNS is in place, and ends with `ready: https://<your host>/reg/service/info`. If the release cannot be downloaded or its signature cannot be verified, the setup stops with an `ERROR` line and installs nothing.
 
 If you skipped the User Data, write `/opt/pryv/first-boot.env` yourself (as root, same content as above): the setup starts as soon as the file exists.
 
@@ -79,7 +82,7 @@ sudo systemctl disable pryv
 sudo rm -rf /opt/pryv/pryv-config.yml /opt/pryv/data /opt/pryv/.initialized
 ```
 
-Then correct `/opt/pryv/first-boot.env` and run `sudo systemctl start pryv-first-boot.path`: the setup runs again from the start.
+Then correct `/opt/pryv/first-boot.env` and run `sudo systemctl start pryv-first-boot.path`: the setup runs again from the start. It keeps the release chosen the first time; to choose again from `PRYV_VERSION`, also empty it with `sudo sed -i 's/^PRYV_IMAGE=.*/PRYV_IMAGE=/' /etc/default/pryv` before starting.
 
 ## 5. Verify
 
@@ -87,11 +90,11 @@ Then correct `/opt/pryv/first-boot.env` and run `sudo systemctl start pryv-first
 curl https://pryv.example.com/reg/service/info
 ```
 
-answers with your platform's description, for example:
+answers with your platform's description, `apiVersion` being the release the setup installed, for example:
 
 ```json
 {
-  "meta": { "apiVersion": "2.0.0-rc.43", "serverTime": 1791373164.65, "serial": "20261007" },
+  "meta": { "apiVersion": "2.0.0-rc.50", "serverTime": 1791373164.65, "serial": "20261013" },
   "name": "Open Pryv.io",
   "api": "https://pryv.example.com/{username}/",
   "register": "https://pryv.example.com/reg/",
@@ -109,11 +112,12 @@ Then create a first account and app access: see [Open Pryv.io, getting started](
 | Configuration, including the admin key | `/opt/pryv/pryv-config.yml` (mode 0600, owned by uid 1000: the server's user, which is also the `ubuntu` login user) |
 | Data (accounts, attachments, certificates, platform database) | `/opt/pryv/data` |
 | Setup answers | `/opt/pryv/init-answers.yml` |
+| Release in use (tag and image digest) | `/etc/default/pryv`, also shown at login |
 
 - **Configuration changes:** edit `/opt/pryv/pryv-config.yml`, then `sudo systemctl restart pryv`. Reference: [INSTALL.md](https://github.com/pryv/open-pryv.io/blob/master/INSTALL.md).
 - **Email** (password reset, welcome emails) is not configured by the setup: see the Email section of INSTALL.md.
 - **Backups:** take Exoscale snapshots of the instance, or use the open-pryv.io backup tool (`bin/backup.js`, see INSTALL.md).
-- **Upgrades:** change the tag of `PRYV_IMAGE` in `/etc/default/pryv`, then `sudo docker pull <that image>` and `sudo systemctl restart pryv`. Read the release notes first.
+- **Upgrades:** read the [release notes](https://github.com/pryv/open-pryv.io/blob/master/CHANGELOG-v2.md) first, then run `sudo /opt/pryv/pryv-upgrade.sh` (the version requested at setup, e.g. `latest`), or `sudo /opt/pryv/pryv-upgrade.sh <release>` for a given release, `latest` or `latest-stable`. It verifies the signature of the release, downloads it, checks your configuration with it and restarts the server; the previous release stays on disk, so going back is `sudo /opt/pryv/pryv-upgrade.sh <previous release>`.
 - The server runs under systemd (`pryv.service`) with the same container settings as the `run-pryv.sh` the wizard wrote in `/opt/pryv`. Do not run `run-pryv.sh` as well: it would start a second container.
 
 ## Coming from the v1 template

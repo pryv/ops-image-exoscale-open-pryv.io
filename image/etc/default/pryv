@@ -1,8 +1,7 @@
-# Open Pryv.io service settings, read by pryv.service and /opt/pryv/first-boot.sh.
-#
-# Upgrade to another open-pryv.io release:
-#   1. change the tag below
-#   2. docker pull <the new image>
-#   3. systemctl restart pryv
-PRYV_IMAGE=pryvio/open-pryv.io:__PRYV_TAG__
+# Open Pryv.io service settings, read by pryv.service and the scripts in /opt/pryv.
+# Filled at first boot by /opt/pryv/first-boot.sh with the release it resolved,
+# verified and pulled (PRYV_VERSION in /opt/pryv/first-boot.env), then by
+# /opt/pryv/pryv-upgrade.sh. Do not edit PRYV_IMAGE by hand: the upgrade script
+# verifies the release signature first.
+PRYV_IMAGE=
 PRYV_CONFIG_DIR=/opt/pryv

@@ -7,7 +7,7 @@ echo "INFO[${SCRIPT}]: Installing base packages ..."
 export DEBIAN_FRONTEND='noninteractive'
 apt-get update
 apt-get install --yes --no-install-recommends \
-  ca-certificates curl gnupg dnsutils gettext-base unattended-upgrades
+  ca-certificates curl gnupg dnsutils gettext-base jq unattended-upgrades
 
 # Security updates only, no automatic reboot (the operator decides when)
 cat > /etc/apt/apt.conf.d/20auto-upgrades <<'EOF'
