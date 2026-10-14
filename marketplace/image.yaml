@@ -4,13 +4,13 @@
 # `checksum` is its MD5. `family` is set by Exoscale at the first push: keep the value they confirm.
 # Filled at release time, see "Releasing a template" in README.md.
 family: Open Pryv.io
-version: "__IMAGE_VERSION__"
+version: "2.0"
 name: Open Pryv.io
 username: ubuntu
 password: false
 uefi: true
 size: 10737418240
 sshkeyenabled: true
-image: open-pryv.io-__IMAGE_VERSION__-__BUILD__.qcow2
-source: __SOURCE_BASE_URL__
-checksum: __MD5__
+image: open-pryv.io-2.0-1.qcow2
+source: https://sos-ch-gva-2.exo.io/pryv-marketplace-images/
+checksum: 848fcb2ec07ec7c8010cfbdf839f890b
