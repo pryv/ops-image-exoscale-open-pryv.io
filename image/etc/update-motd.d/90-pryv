@@ -10,6 +10,7 @@ if [ -f /opt/pryv/.initialized ]; then
    Configuration:  /opt/pryv/pryv-config.yml  (holds the admin key; readable by root and ubuntu)
    Setup log:      /var/log/pryv-first-boot.log
    Upgrade:        sudo /opt/pryv/pryv-upgrade.sh [latest|latest-stable|<version>]
+   Template:       $(cat /etc/pryv-template-release 2>/dev/null || echo unknown)
 EOF
   [ -f /opt/pryv/version-note ] && echo "   Note:           $(cat /opt/pryv/version-note)"
   echo
@@ -18,7 +19,9 @@ elif [ -f /opt/pryv/first-boot.env ]; then
 
  Open Pryv.io setup is running:  tail -f /var/log/pryv-first-boot.log
 EOF
-  last_error="$(grep 'ERROR:' /var/log/pryv-first-boot.log 2>/dev/null | tail -n 1)"
+  # Only the current run: the log keeps the earlier runs above their own "starting" line
+  last_error="$(awk '/\] [0-9TZ:-]+ starting$/ { e = "" } /ERROR:/ { e = $0 } END { print e }' \
+    /var/log/pryv-first-boot.log 2>/dev/null)"
   [ -n "$last_error" ] && printf ' Last error: %s\n' "$last_error"
   cat <<'EOF'
  If it stopped with an ERROR: fix /opt/pryv/first-boot.env, then

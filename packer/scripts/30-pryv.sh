@@ -55,7 +55,10 @@ if [ -n "$(docker images --quiet)" ]; then
   exit 1
 fi
 # cosign's trust root cache is fetched again at first boot
-rm -rf /root/.sigstore
+rm -rf /root/.sigstore /root/.cache/sigstore
+
+# Which template build this instance comes from (shown at login, useful for support)
+echo "Open Pryv.io template ${PRYV_IMAGE_VERSION:-?} build ${PRYV_BUILD:-?}" > /etc/pryv-template-release
 
 systemctl daemon-reload
 systemctl enable pryv-first-boot.path

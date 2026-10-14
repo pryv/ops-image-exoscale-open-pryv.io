@@ -84,7 +84,7 @@ PRYV_VERSION="${PRYV_VERSION:-latest}"
 [[ "$PRYV_SERVICE_NAME" =~ ^[^[:cntrl:]]{1,100}$ ]] \
   || fail "PRYV_SERVICE_NAME must be 1 to 100 printable characters"
 [[ "$PRYV_VERSION" =~ ^(latest|latest-stable|[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?)$ ]] \
-  || fail "PRYV_VERSION must be latest, latest-stable or a release such as 2.0.0-rc.50 (got '$PRYV_VERSION')"
+  || fail "PRYV_VERSION must be latest, latest-stable or a 2.x (or later) release such as 2.0.0-rc.50 (got '$PRYV_VERSION')"
 # Single-quoted YAML scalar: a quote is written as two quotes
 PRYV_SERVICE_NAME="${PRYV_SERVICE_NAME//\'/\'\'}"
 export PRYV_HOSTNAME PRYV_EMAIL PRYV_SERVICE_NAME PRYV_AUTHUI_URL PRYV_LE_STAGING

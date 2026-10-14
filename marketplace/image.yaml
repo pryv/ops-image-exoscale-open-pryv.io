@@ -1,6 +1,7 @@
 # Marketplace description of the current template, sent to Exoscale with each release
 # (fields: https://community.exoscale.com/vendor/marketplace-templ-tech/).
-# `source` + `image` is the public HTTPS URL of the QCOW2 file; `checksum` is its MD5.
+# `source` is the bucket's public base URL (ending with /), `source` + `image` the QCOW2 URL;
+# `checksum` is its MD5. `family` is set by Exoscale at the first push: keep the value they confirm.
 # Filled at release time, see "Releasing a template" in README.md.
 family: Open Pryv.io
 version: "__IMAGE_VERSION__"
@@ -11,5 +12,5 @@ uefi: true
 size: 10737418240
 sshkeyenabled: true
 image: open-pryv.io-__IMAGE_VERSION__-__BUILD__.qcow2
-source: __SOURCE_URL__
+source: __SOURCE_BASE_URL__
 checksum: __MD5__

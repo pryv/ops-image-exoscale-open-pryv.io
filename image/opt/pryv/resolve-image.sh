@@ -48,18 +48,23 @@ esac
 releases="$(
   url="$TAGS_URL"
   while [ -n "$url" ]; do
-    page="$(curl -fsS --max-time 30 --retry 3 --retry-delay 5 "$url")" \
+    page="$(curl -fsS --proto '=https' --max-time 30 --retry 3 --retry-delay 5 "$url")" \
       || err "cannot list the image tags at $url (no network access to Docker Hub?)"
-    jq -r '.results[] | "\(.name) \(.digest // "")"' <<< "$page"
+    jq -e '.results | type == "array"' <<< "$page" > /dev/null \
+      || err "unexpected answer from Docker Hub at $url (no tag list): $(head -c 200 <<< "$page")"
+    # Only active tags with a digest: a tag being re-indexed must not block `latest`
+    jq -r '.results[]
+      | select(.tag_status == "active" and ((.digest // "") | test("^sha256:[0-9a-f]{64}$")))
+      | "\(.name)\t\(.digest)"' <<< "$page"
     url="$(jq -r '.next // empty' <<< "$page")"
-  done | while read -r name digest; do
+  done | while IFS=$'\t' read -r name digest; do
     is_release "$name" || continue
     # final > release candidate of the same version; numeric order throughout
-    if [ -n "${BASH_REMATCH[4]}" ]; then final=0; rc="${BASH_REMATCH[5]}"; else final=1; rc=0; fi
+    if [ -n "${BASH_REMATCH[4]:-}" ]; then final=0; rc="${BASH_REMATCH[5]:-0}"; else final=1; rc=0; fi
     printf '%06d.%06d.%06d.%d.%06d %s %s\n' \
       "$((10#${BASH_REMATCH[1]}))" "$((10#${BASH_REMATCH[2]}))" "$((10#${BASH_REMATCH[3]}))" \
       "$final" "$((10#$rc))" "$name" "$digest"
-  done | sort
+  done | LC_ALL=C sort
 )"
 [ -n "$releases" ] || err "no $MIN_MAJOR.x release tag found for $REPO on Docker Hub"
 
@@ -75,7 +80,7 @@ case "$requested" in
     fi ;;
   *)
     picked="$(awk -v t="$requested" '$2 == t' <<< "$releases")"
-    [ -n "$picked" ] || err "release $requested not found on Docker Hub ($REPO)" ;;
+    [ -n "$picked" ] || err "release $requested not found (or not available) on Docker Hub ($REPO)" ;;
 esac
 tag="$(cut -d' ' -f2 <<< "$picked")"
 digest="$(cut -d' ' -f3 <<< "$picked")"
@@ -94,8 +99,9 @@ echo "signature verified: $SIGNER_WORKFLOW@refs/tags/$tag" >&2
 ## 4. Pull by digest
 if $pull; then
   docker pull --quiet "$REPO@$digest" >&2 || err "docker pull $REPO@$digest failed"
-  docker image inspect --format '{{join .RepoDigests "\n"}}' "$REPO@$digest" | grep -qxF "$REPO@$digest" \
-    || err "the pulled image does not carry the digest $digest"
+  repo_digests="$(docker image inspect --format '{{join .RepoDigests "\n"}}' "$REPO@$digest")" \
+    || err "the pulled image $REPO@$digest cannot be inspected"
+  grep -qxF "$REPO@$digest" <<< "$repo_digests" || err "the pulled image does not carry the digest $digest"
   echo "pulled $REPO@$digest" >&2
 fi
 

@@ -4,7 +4,8 @@
 
 - The Open Pryv.io release is chosen at first boot instead of being baked into the template: `PRYV_VERSION` (user-data, optional) is `latest` (default, the newest release, release candidates included), `latest-stable` (the newest final release; the newest release candidate with a warning until 2.0.0 exists) or an explicit release (2.x or later). A new open-pryv.io release no longer needs a new template.
 - The image's keyless signature (open-pryv.io release workflow, for that tag) is verified with cosign before use, and the image runs by digest. A release that cannot be listed, verified, pulled or that rejects the wizard answers stops the setup with an `ERROR` line; there is no fallback release.
-- `/opt/pryv/pryv-upgrade.sh [latest|latest-stable|<release>]` replaces the manual upgrade steps (resolve, verify, pull, `check-config`, restart).
+- `/opt/pryv/pryv-upgrade.sh [latest|latest-stable|<release>]` replaces the manual upgrade steps (resolve, verify, pull, `check-config`, restart, wait until the server answers); it keeps the new and the previous image only.
+- The login message shows the release in use (tag and digest) and the template build (`/etc/pryv-template-release`).
 - Template name "Open Pryv.io" (no release in the name), template version = this repository's image version (`2.0`), repository tags `<version>-<build>`.
 - The build saves the snapshot as a QCOW2 file (`snapshot_download`), published in Object Storage for the Marketplace together with `marketplace/image.yaml`; the build smoke-tests the first-boot chain and leaves no image in the template.
 

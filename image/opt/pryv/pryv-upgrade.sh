@@ -2,7 +2,9 @@
 # Change the Open Pryv.io release this instance runs.
 #
 # Usage (as root): /opt/pryv/pryv-upgrade.sh [latest|latest-stable|<version>]
-# Without an argument, uses the version requested at setup (PRYV_VERSION).
+# Without an argument, uses the version last requested (PRYV_VERSION at setup, or the
+# argument of the last upgrade): `latest` keeps following new releases, a pinned release
+# stays pinned.
 # Resolves the release, verifies its signature, pulls it, checks the current
 # configuration with it, then restarts pryv.service on it.
 set -Eeuo pipefail
@@ -43,6 +45,32 @@ pryv_write_settings "$tag" "$digest" "$requested"
 pryv_write_version_note "$tag" "$requested"
 [ -f "$CONFIG_DIR/version-note" ] && echo "WARNING: $(cat "$CONFIG_DIR/version-note")"
 systemctl restart pryv
-echo "Upgraded: $current_tag -> $tag ($new_image)"
+echo "Restarted on $tag; waiting for the server to answer ..."
+
+# Host name from the setup settings (read as data, never executed)
+host="$(sed -n 's/^[[:space:]]*PRYV_HOSTNAME=["'\'']\{0,1\}\([A-Za-z0-9.-]*\).*/\1/p' "$CONFIG_DIR/first-boot.env" 2>/dev/null | tail -n 1)"
+answered=false
+for _ in $(seq 1 36); do
+  # -k: this only checks that the new release answers, whatever the certificate state
+  if [ -n "$host" ] && curl -fsSk --max-time 5 "https://$host/reg/service/info" > /dev/null 2>&1; then
+    answered=true; break
+  fi
+  sleep 5
+done
+
+# Keep the new and the previous image only: each one takes over a gigabyte
+for id in $(docker images --quiet pryvio/open-pryv.io | sort -u); do
+  digests="$(docker image inspect --format '{{join .RepoDigests " "}}' "$id" 2>/dev/null || true)"
+  case " $digests " in
+    *" $new_image "*|*" $current_image "*) ;;
+    *) docker image rm "$id" > /dev/null 2>&1 || true ;;
+  esac
+done
+
+if $answered; then
+  echo "Upgraded: $current_tag -> $tag ($new_image), https://$host/reg/service/info answers."
+else
+  echo "WARNING: restarted on $tag, but https://${host:-<host>}/reg/service/info does not answer after 3 minutes; see: journalctl -u pryv" >&2
+fi
 echo "Logs: journalctl -u pryv -f"
 echo "The previous image stays on disk; to go back: $0 $current_tag"

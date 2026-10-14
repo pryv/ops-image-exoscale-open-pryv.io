@@ -58,13 +58,14 @@ Needed when the base system or the setup scripts change; an open-pryv.io release
 3. Build with the final name in every zone: `packer build -var image_version=<version> -var build=<build> -var 'zones=[...]' .`
 4. Publish the QCOW2 (bucket `pryv-marketplace-images`, zone `ch-gva-2`):
    ```sh
+   cd output
    f=open-pryv.io-<version>-<build>.qcow2
-   mv output/<downloaded file> "output/$f" && md5sum "output/$f" | tee "output/$f.md5"
-   exo storage upload --acl public-read "output/$f" "output/$f.md5" sos://pryv-marketplace-images/
+   mv "Open Pryv.io.qcow2" "$f" && md5sum "$f" | tee "$f.md5"   # Packer names the file after the template
+   exo storage upload --acl public-read "$f" "$f.md5" sos://pryv-marketplace-images/
    exo storage show "sos://pryv-marketplace-images/$f"
    curl -sI "<URL shown>"   # anonymous: 200, Content-Length = the file size
    ```
-5. Fill [`marketplace/image.yaml`](marketplace/image.yaml) (version, image, source URL, MD5) and record the template ID, zones, QCOW2 URL and MD5 in [`TEMPLATES.md`](TEMPLATES.md) (check each zone with `exo compute instance-template list --visibility private --zone <zone>`).
+5. Fill [`marketplace/image.yaml`](marketplace/image.yaml) (version, image = the file name, source = the bucket base URL ending with `/`, so that source + image is the URL shown above, MD5) and record the template ID, zones, QCOW2 URL and MD5 in [`TEMPLATES.md`](TEMPLATES.md) (check each zone with `exo compute instance-template list --visibility private --zone <zone>`).
 6. Send the template name, version, build, ID, QCOW2 URL, MD5 and `image.yaml` to Exoscale support (support@exoscale.com) for the Marketplace listing. Once they confirm, delete the previous template (one template named "Open Pryv.io" at a time: the launch button selects it by name) and keep only the current and previous QCOW2 in the bucket.
 
 ## Checks before committing
