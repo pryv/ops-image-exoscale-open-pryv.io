@@ -66,7 +66,7 @@ Needed when the base system or the setup scripts change; an open-pryv.io release
    curl -sI "<URL shown>"   # anonymous: 200, Content-Length = the file size
    ```
 5. Fill [`marketplace/image.yaml`](marketplace/image.yaml) (version, image = the file name, source = the bucket base URL ending with `/`, so that source + image is the URL shown above, MD5) and record the template ID, zones, QCOW2 URL and MD5 in [`TEMPLATES.md`](TEMPLATES.md) (check each zone with `exo compute instance-template list --visibility private --zone <zone>`).
-6. Send the template name, version, build, ID, QCOW2 URL, MD5 and `image.yaml` to Exoscale support (support@exoscale.com) for the Marketplace listing. Once they confirm, delete the previous template (one template named "Open Pryv.io" at a time: the launch button selects it by name) and keep only the current and previous QCOW2 in the bucket.
+6. Send the template name, version, build, ID, QCOW2 URL, MD5 and `image.yaml` to Exoscale support (support@exoscale.com) for the Marketplace listing. Exoscale registers a public copy from the QCOW2 under its own ID: check it (`exo compute instance-template list --visibility public --zone <zone>`, checksum = the MD5, every zone) and record that ID in `TEMPLATES.md`. Once the listing launches it, delete the previous template (one template named "Open Pryv.io" at a time: the launch button selects it by name) and keep only the current and previous QCOW2 in the bucket.
 
 ## Checks before committing
 
